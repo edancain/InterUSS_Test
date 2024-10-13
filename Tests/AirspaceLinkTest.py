@@ -1,21 +1,21 @@
 #!/usr/bin/env python3
 
 import copy
-from Airspacelink.route import RouteRequest
-from Airspacelink.routeV2 import RouteV2Request, RouteV2Response
-from Airspacelink.layer import Layer, Layers
-from Airspacelink.operations import Operation
-from Airspacelink.aviation import Aviation
+from AirspaceLink_API.route import RouteRequest
+from AirspaceLink_API.routeV2 import RouteV2Request, RouteV2Response
+from AirspaceLink_API.layer import Layer, Layers
+from AirspaceLink_API.operations import Operation
+from AirspaceLink_API.aviation import Aviation
 import datetime
-from Airspacelink.authentication import Authentication
+from AirspaceLink_API.authentication import Authentication
 from geopandas import GeoSeries
 from shapely.geometry import shape, LineString, Polygon
 import ast
 import json
-from Airspacelink.test_utility import TestUtility
-from Airspacelink.stop import Stop
-from Airspacelink.advisories import Geometry, GeometryType, LineStringGeometry, PolygonGeometry
-from Airspacelink.operations import Operational_Feature, Operation_Properties
+from AirspaceLink_API.test_utility import TestUtility
+from AirspaceLink_API.stop import Stop
+from AirspaceLink_API.advisories import Geometry, GeometryType, LineStringGeometry, PolygonGeometry
+from AirspaceLink_API.operations import Operational_Feature, Operation_Properties
 
 
 class AirspacelinkResponse:
