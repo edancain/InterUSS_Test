@@ -19,7 +19,7 @@ import pytz
 from typing import List
 import uuid
 
-from Airspacelink.advisories import Geometry, GeometryType, PolygonGeometry
+from AirspaceLink_API.advisories import Geometry, GeometryType, PolygonGeometry
 from DSS.subscription import Subscription, SubscriptionRequest, Subscriptions, Subscription_Response
 from Utility.utility import Extents, OutlinePolygon, OutlineCircle, TimeMeasured, Vertex, Vertices, Volume, Altitude, Time, Extent, AreaOfInterest, OperationalIntentStatus, TimeRange, AltitudeRange
 from DSS.operational_intent_reference import OperationalIntentReferenceRequest, OperationalIntentReferenceResponse, OperationalIntentReferences, OperationalIntentReference

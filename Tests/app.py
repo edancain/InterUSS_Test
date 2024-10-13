@@ -1,4 +1,3 @@
-from flask import Flask #, g
 import threading
 
 import sys
@@ -23,9 +22,9 @@ from datetime import datetime, timedelta
 # import pdb
 import ptvsd
 
-from Airspacelink.advisories import Geometry, GeometryType, PolygonGeometry
-from Airspacelink.operations import Operation, Operation_Properties, Operational_Feature
-from Airspacelink.authentication import Authentication
+from AirspaceLink_API.advisories import Geometry, GeometryType, PolygonGeometry
+from AirspaceLink_API.operations import Operation, Operation_Properties, Operational_Feature
+from AirspaceLink_API.authentication import Authentication
 from DSS.subscription import USS_Subscription
 from USS.constaint_details import Constraint, ConstraintDetails
 from DSS.operational_intent_reference import OperationalIntentReference
@@ -33,7 +32,7 @@ from USS.operational_intent_details import OperationalIntentOffNominal, Operatio
 from Utility.utility import Message, NewSubscription, OperationalIntentStatus, Reference, Subscription, Extent, TimeRange, Volume, OutlinePolygon, Vertex, Vertices, TimeMeasured, Altitude, StartEndTime, AltitudeRange
 import TimestampValidator
 import AirspaceLinkTest
-from Airspacelink.stop import Stop
+from AirspaceLink_API.stop import Stop
 from dss_interaction import MainProcessor
 from DSS.authentication import Authentication, UtmScope
 from dss_interaction import ApiException, DSS_Interaction, SubscriptionRequest
