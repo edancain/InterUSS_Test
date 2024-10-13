@@ -1,0 +1,42 @@
+version: '3.8'
+services:
+  app:
+    container_name: USS
+    build: .
+    ports:
+      - "5000:5000"
+    depends_on:
+      - db
+    environment:
+      - DB_USER=root
+      - DB_PASSWORD=root
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_NAME=postgres
+
+  db:
+    image: postgis/postgis:latest
+    environment:
+      - POSTGRES_USER=root
+      - POSTGRES_PASSWORD=root
+      - POSTGRES_DB=postgres
+  #  image: postgres:12  # Using an older version that defaults to MD5
+  #  restart: always
+  #  environment:
+  #    - POSTGRES_USER=root
+  #    - POSTGRES_PASSWORD=root
+  #    - POSTGRES_DB=postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - ./docker_postgres_init.sql:/docker-entrypoint-initdb.d/docker_postgres_init.sql
+
+  pgadmin:
+    image: dpage/pgadmin4
+    environment:
+      PGADMIN_DEFAULT_EMAIL: "test@gmail.com"
+      PGADMIN_DEFAULT_PASSWORD: "test123!"
+    ports:
+      - "16543:80"
+    depends_on:
+      - db

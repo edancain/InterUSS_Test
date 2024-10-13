@@ -1,0 +1,1425 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
+  <title>AirspaceLink InterUSS Test</title>
+
+  <link rel="stylesheet" href="https://js.arcgis.com/4.28/esri/themes/light/main.css" />
+  <script src="https://js.arcgis.com/4.28/"></script>
+
+  <style>
+    html,
+    body,
+    #viewDiv {
+      padding: 0;
+      margin: 0;
+      height: 100%;
+      width: 100%;
+    }
+
+    #sketchPanel {
+      width: 230px;
+      padding: 10px;
+      background-color: rgba(255, 255, 255, 0.8);
+    }
+
+    .esri-button {
+      margin: 2px;
+    }
+
+    #configurationDiv {
+      padding: 10px;
+      text-align: left;
+      width: 250px;
+    }
+
+    #configurationInfoDiv {
+      padding: 7px;
+      text-align: left;
+    }
+
+    #snappingctrlkey {
+      display: inline;
+    }
+
+    #actionbuttons,
+    #dss_activity,
+    #graphicDataUI {
+      display: none;
+    }
+
+    .update-options {
+      display: flex;
+      flex-direction: row;
+    }
+
+    .edge-button,
+    .shape-button {
+      flex: 1;
+      border-style: solid;
+      border-width: 1px;
+      border-image: none;
+    }
+
+    .edge-button-selected,
+    .shape-button-selected {
+      background: #4c4c4c;
+      color: #fff;
+    }
+  </style>
+  <script>
+    require([
+      "esri/geometry/Point",
+      "esri/Map",
+      "esri/views/SceneView",
+      "esri/layers/GraphicsLayer",
+      "esri/Graphic",
+      "esri/widgets/Sketch/SketchViewModel",
+      "esri/widgets/Expand",
+      "esri/core/reactiveUtils",
+      "esri/geometry/geometryEngine",
+      "esri/geometry/Polyline",
+      "esri/geometry/Polygon",
+      "esri/symbols/FillSymbol3DLayer",
+      "esri/symbols/ExtrudeSymbol3DLayer",
+      "esri/geometry/SpatialReference",
+      "esri/widgets/CoordinateConversion",
+      "esri/widgets/CoordinateConversion/support/Format",
+      "esri/widgets/CoordinateConversion/support/Conversion",
+      "esri/renderers/UniqueValueRenderer"
+    ], (Point, Map, SceneView, GraphicsLayer, Graphic, SketchViewModel, Expand, reactiveUtils, geometryEngine, Polyline, Polygon,
+      FillSymbol3DLayer, ExtrudeSymbol3DLayer, SpatialReference, CoordinateConversion, Format, Conversion, UniqueValueRenderer) => {
+      // the layer where the graphics are sketched
+      const graphicsLayer = new GraphicsLayer({
+        elevationInfo: { mode: "on-the-ground" },
+        title: "Sketch GraphicsLayer"
+      });
+
+      // Open in a new tab
+      window.open('http://localhost:8082/healthy', '_blank');
+
+      // fetch("http://localhost:8082/healthy")
+      // .then(response => {
+      //   if (response.ok) {
+      //     return response.text();
+      //   } else {
+      //     throw new Error('Network response was not ok');
+      //   }
+      // })
+      // .then(data => {
+      //   console.log(data); // Should log "ok" if the response is successful
+      //   var dss_connection = document.getElementById("dss_connected_label");
+      //   dss_connection.textContent += " OK";
+
+      // })
+      // .catch(error => {
+      //   console.error('There was an error:', error);
+      //   var dss_connection = document.getElementById("dss_connected_label");
+      //   dss_connection.textContent += " Not OK";
+      // });
+
+      const airCorridorLayer = new GraphicsLayer({
+        elevationInfo: {
+            mode: "relative-to-ground",
+            offset: 40
+          },
+        title: "Air Corridor GraphicsLayer"
+      });
+
+      const map = new Map({
+        basemap: "satellite",
+        layers: [graphicsLayer, airCorridorLayer],
+        ground: "world-elevation"
+      });
+
+      const view = new SceneView({
+        container: "viewDiv",
+        map: map,
+        camera: {
+          position: [-120.008211, 38.958464, 2673.31548], //38.958464, -120.008608
+          heading: 180,
+          tilt: 78.35
+        },
+        qualityProfile: "high",
+        environment: {
+            lighting: {
+              directShadowsEnabled: true,
+            }
+          }
+      });
+
+      const blue = [82, 82, 122, 0.9];
+      const white = [255, 255, 255, 0.8];
+
+      // polyline symbol used for sketching routes
+      const route = {
+        type: "line-3d",
+        symbolLayers: [
+          {
+            type: "line",
+            size: "10px",
+            material: {
+              color: white
+            }
+          },
+          {
+            type: "line",
+            size: "3px",
+            material: {
+              color: blue
+            }
+          }
+        ]
+      };
+
+      // Create a symbol for the sides of the polygon
+      var _sideSymbol = {
+        type: "polygon-3d",
+        symbolLayers: [
+          {
+            type: "extrude",
+            size: 121, // Height of the extrusion
+            material: {
+              color: [255, 0, 0, 0.4]
+            }
+          }
+        ]
+      };
+
+      // Create a symbol for the sides of the polygon
+      var operationalIntentSideSymbol = {
+        type: "polygon-3d",
+        symbolLayers: [
+          {
+            type: "extrude",
+            size: 100, // Height of the extrusion
+            material: {
+              color: [0, 0, 250, 0.4]
+            }
+          }
+        ]
+      };
+
+      _graphic = null;
+      _subscription_id = null
+      _keys = []
+
+      // Set-up event handlers for buttons and click events
+      const startbuttons = document.getElementById("startbuttons");
+      const actionbuttons = document.getElementById("actionbuttons");
+      const graphicDataUI = document.getElementById("graphicDataUI")
+      const dss_activity = document.getElementById("dss_activity")
+      const tooltipOptionsheckbox = document.getElementById("tooltipOptionsheckbox");
+      const configurationInfoDiv = document.getElementById("configurationInfoDiv");
+      const labelOptionscheckbox = document.getElementById("labelOptionscheckbox");
+      const dsssubscriptionvisibilitycheckbox = document.getElementById("dsssubscriptionvisibilitycheckbox");
+      const aslnetworkvisibilitycheckbox = document.getElementById("aslnetworkvisibilitycheckbox");
+      const aslhexvisibilitycheckbox = document.getElementById("aslhexvisibilitycheckbox");
+      const use_asl_checkbox = document.getElementById("use_asl_checkbox");
+      
+
+      // load the default value from the snapping checkbox
+      let snappingcheckboxsavedstate = true; //enabledcheckbox.checked ? true : false;
+
+      // define the SketchViewModel and pass in the symbols for each geometry type
+      // set the snappingOptions.selfEnabled to the default state
+      const sketchViewModel = new SketchViewModel({
+        layer: graphicsLayer,
+        view: view,
+        polylineSymbol: route,
+        snappingOptions: {
+          enabled: snappingcheckboxsavedstate,
+          featureSources: [{ layer: graphicsLayer }]
+        },
+        tooltipOptions: { enabled: true },
+        labelOptions: { enabled: true },
+        defaultUpdateOptions: {
+          tool: "reshape"
+        }
+      });
+
+      // after drawing the geometry, enter the update mode to update the geometry
+      // and the deactivate the buttons
+      sketchViewModel.on("create", (event) => {
+        if (event.state === "complete") {
+          var ovn_panel = document.getElementById("ovn");
+          ovn_panel.style.display = "none";
+          var opt_intent_ref = document.getElementById("optIntentPanel");
+          opt_intent_ref.style.display = "none";
+          var operationaIntentRefResult = document.getElementById("operationaIntentRefResult")
+          operationaIntentRefResult.style.display = "none";
+
+          startbuttons.style.display = "inline";
+          actionbuttons.style.display = "none";
+          sketchViewModel.update(event.graphic);
+        }
+        if (event.state === "cancel") {
+          startbuttons.style.display = "inline";
+          actionbuttons.style.display = "none";
+          graphicDataUI.style.display = "none";
+          dss_activity.style.display = "none";
+        }
+      });
+
+      sketchViewModel.on("update", (event) => {
+        if (event.state === "start") {
+          startbuttons.style.display = "none";
+          actionbuttons.style.display = "inline";
+          graphicDataUI.style.display = "inline";
+          if (event.graphics[0].geometry.type === "polygon" || event.graphics[0].geometry.type === "polyline") {
+            _graphic = event.graphics[0]
+            displayDistanceTime(_graphic)
+            if (_graphic.attributes != null) {
+              dss_activity.style.display = "inline";
+            }
+          }
+        }
+        if (event.state === "complete") {
+          startbuttons.style.display = "inline";
+          actionbuttons.style.display = "none";
+          graphicDataUI.style.display = "none";
+          dss_activity.style.display = "none";
+        }
+      });
+
+
+      // Add a click event handler to the graphicsLayer
+      view.on("click", (event) => {
+        view.hitTest(event).then((response) => {
+          let polylineFound = false;
+          let hasAttributes = false;
+          let isPolygon = false;
+
+          response.results.forEach(function (result) {
+            if (polylineFound) {
+              return
+            }
+
+            // Check if the graphic has attributes
+            if (result.graphic && result.graphic.attributes) {
+              hasAttributes = true;
+              _graphic = result.graphic;
+              sketchViewModel.update([_graphic], {
+                tool: "reshape"
+              });
+            } else {
+              // Continue to the next iteration if the graphic has no attributes
+              return;
+            }
+
+            // Check the geometry type of the graphic
+            if (_graphic.geometry && _graphic.geometry.type) {
+              if (_graphic.geometry.type === "polyline") {
+                // Polyline found, set _graphic and return immediately
+                displayDistanceTime(_graphic);
+                dss_activity.style.display = "inline";
+
+                polylineFound = true;
+                return;
+              } else if (_graphic.geometry.type === "polygon") {
+                isPolygon = true;
+              }
+            }
+
+            //view.openPopup({
+              // Set the popup's title to the coordinates of the clicked location
+            //  title: "Reverse geocode:jhsad",
+            //  location: event.mapPoint // Set the location of the popup to the clicked location
+            //});
+          });
+
+          // Enable/disable buttons based on the graphic type
+          if (isPolygon && hasAttributes) {
+            dssCreateSubscriptionBtn.disabled = false;
+            dssCreateConstraintBtn.disabled = true;
+            dssCreateOperationalIntentBtn.disabled = true;
+          } else {
+            dssCreateSubscriptionBtn.disabled = true;
+            dssCreateConstraintBtn.disabled = false;
+            dssCreateOperationalIntentBtn.disabled = false;
+          }
+
+          if (!polylineFound && hasAttributes) {
+            startbuttons.style.display = "none";
+            actionbuttons.style.display = "inline";
+            graphicDataUI.style.display = "inline";
+            dss_activity.style.display = "inline";
+          } else if (!polylineFound && !hasAttributes) {
+            // Handle case where no polyline or graphics with attributes are found
+            startbuttons.style.display = "inline";
+            actionbuttons.style.display = "none";
+            graphicDataUI.style.display = "none";
+            dss_activity.style.display = "none";
+          }
+        });
+      });
+
+
+      /**********************************************
+       * Drawing UI with configuration
+       *********************************************/
+
+      const drawButtons = Array.prototype.slice.call(document.getElementsByClassName("starttool"));
+      const cancelBtn = document.getElementById("cancel");
+      const doneBtn = document.getElementById("done");
+      const dssCreateSubscriptionBtn = document.getElementById("dss_subscription")
+      const dssCreateConstraintBtn = document.getElementById("dss_constraint")
+      const dssCreateOperationalIntentBtn = document.getElementById("dss_operational_intent")
+      const errorMessage = document.getElementById('dismissErrorMessage')
+      const opt_intent_ref = document.getElementById("optIntentPanel");
+      const operationaIntentRefResult = document.getElementById("operationaIntentRefResult")
+      const queryOperationIntentbtn = document.getElementById("queryOperationIntentbtn");
+      const ovn_panel = document.getElementById("ovn");
+
+      opt_intent_ref.style.display = "none";
+      operationaIntentRefResult.style.display = "none";
+      ovn_panel.style.display = "none";
+
+      queryOperationIntentbtn.addEventListener("click", (event) => {
+        var operationalIntentRefInput = document.getElementById("optIntentRefInput").value
+        fetch('/get_operational_intents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              id: operationalIntentRefInput
+            }),
+          })
+            .then(response => response.json())
+            .then(data => {
+              const operationaIntentRefResult = document.getElementById("operationaIntentRefResult")
+              operationaIntentRefResult.style.display = "block";
+              var returnedOptIntentRefURLLabel = document.getElementById("returnedOptIntentRefURLLabel");
+              returnedOptIntentRefURLLabel.textContent = data.operational_intent_ref_response.uss_base_url;
+              
+              var returnedOptIntentRefSubscriptionIDLabel = document.getElementById("returnedOptIntentRefSubscriptionIDLabel");
+              returnedOptIntentRefSubscriptionIDLabel.textContent = data.operational_intent_ref_response.subscription_id;
+
+              var returnedOptIntentRefIDLabel = document.getElementById("returnedOptIntentRefIDLabel");
+              returnedOptIntentRefIDLabel.textContent = data.operational_intent_ref_response.id;
+
+              var returnedOptIntentRefOVNLabel = document.getElementById("returnedOptIntentRefOVNLabel");
+              returnedOptIntentRefOVNLabel.textContent = data.operational_intent_ref_response.ovn;
+
+              var returnedOptIntentRefStartTimeLabel = document.getElementById("returnedOptIntentRefStartTimeLabel");
+              returnedOptIntentRefStartTimeLabel.textContent = data.operational_intent_ref_response.time_start.value.value;
+              
+              var returnedOptIntentRefEndTimeLabel = document.getElementById("returnedOptIntentRefEndTimeLabel");
+              returnedOptIntentRefEndTimeLabel.textContent = data.operational_intent_ref_response.time_end.value.value;
+
+              var ovn_panel = document.getElementById("ovn");
+              ovn_panel.style.display = "block";
+            })
+        
+      });
+
+
+      // set event listeners to activate sketching graphics
+      drawButtons.forEach((btn) => {
+        btn.addEventListener("click", (event) => {
+          // to activate sketching the create method is called passing in the geometry type
+          // from the data-type attribute of the html element
+          sketchViewModel.create(event.target.getAttribute("data-type"));
+          startbuttons.style.display = "none";
+          actionbuttons.style.display = "inline";
+        });
+      });
+
+      cancelBtn.addEventListener("click", (event) => {
+        sketchViewModel.cancel();
+      });
+
+      doneBtn.addEventListener("click", (event) => {
+        if (sketchViewModel.updateGraphics.length !== 0) {
+          if (_graphic != null) {
+
+            displayDistanceTime(_graphic)
+            sendPolylineData(_graphic);
+          }
+          sketchViewModel.complete();
+        } else {
+          sketchViewModel.cancel();
+        }
+      });
+
+      dssCreateSubscriptionBtn.addEventListener("click", (event) => {
+        if (_graphic != null)
+          create_dss_subscription(_graphic);
+
+      });
+
+      dssCreateConstraintBtn.addEventListener("click", (event) => {
+        if (_graphic != null)
+          create_dss_constraint(_graphic);
+      });
+
+      dssCreateOperationalIntentBtn.addEventListener("click", (event) => {
+        if (_graphic != null){
+          create_dss_operational_intent(_graphic);
+        }
+      });
+
+      view.ui.add("sketchPanel", "top-right");
+      view.ui.add("container", "center")
+
+      // Event listener for the dismiss button
+      errorMessage.addEventListener('click', dismissErrorMessage);      
+
+      // default values for edge/move operations
+      let edgeType = "split";
+      let shapeType = "move";
+
+      function restartUpdateMode(updateOptions) {
+        sketchViewModel.defaultUpdateOptions = {
+          ...sketchViewModel.defaultUpdateOptions,
+          ...updateOptions
+        };
+
+        if (sketchViewModel.activeTool) {
+          if (
+            sketchViewModel.activeTool === "transform" ||
+            sketchViewModel.activeTool === "move" ||
+            sketchViewModel.activeTool === "reshape"
+          ) {
+            updateOptions.tool = sketchViewModel.activeTool;
+            sketchViewModel.update(sketchViewModel.updateGraphics.toArray(), updateOptions);
+          }
+        }
+      }
+
+      /**********************************************
+       * Configuration UI for snapping
+       *********************************************/
+
+
+      labelOptionscheckbox.checked = sketchViewModel.labelOptions.enabled;
+      labelOptionscheckbox.addEventListener("change", (event) => {
+        sketchViewModel.labelOptions.enabled = event.target.checked ? true : false;
+      });
+
+      dsssubscriptionvisibilitycheckbox.checked = true;
+      dsssubscriptionvisibilitycheckbox.addEventListener("change", (event) => {
+        // Iterate through each graphic in the view
+        view.graphics.forEach(graphic => {
+          graphic.visible = event.target.checked;
+        });
+      });
+
+      aslnetworkvisibilitycheckbox.checked = true;
+      aslnetworkvisibilitycheckbox.addEventListener("change", (event) => {
+        graphicsLayer.graphics.forEach(graphic => {
+          if( graphic.attributes !== undefined){
+            if(graphic.attributes.name !== undefined){
+              if(graphic.attributes.name === "network"){
+                graphic.visible = event.target.checked;
+              }
+            }
+          }
+        });
+      });
+
+      aslhexvisibilitycheckbox.checked = true;
+      aslhexvisibilitycheckbox.addEventListener("change", (event) => {
+        graphicsLayer.graphics.forEach(graphic => {
+          if( graphic.attributes !== undefined){
+            if(graphic.attributes.name !== undefined){
+              if(graphic.attributes.name === "hex"){
+                graphic.visible = event.target.checked;
+              }
+            }
+          }
+        });
+      });
+
+      use_asl_checkbox.checked = true;
+
+      const configurationExpand = new Expand({
+        expandIcon: "gear",
+        expandTooltip: "Show configuration",
+        expanded: false,
+        view: view,
+        content: document.getElementById("configurationDiv")
+      });
+
+      // observe the if the CTRL-key got pressed to give the user a visual feedback
+      // the logic itself for toggling snapping is in the SketchViewModel
+      view.on(["key-down"], (ev) => {
+        if (ev.key === "Control") {
+          snappingctrlkey.style.fontWeight = "bold";
+          snappingctrlkey.style.color = "royalblue";
+        }
+      });
+      view.on(["key-up"], (ev) => {
+        if (ev.key === "Control") {
+          snappingctrlkey.style.fontWeight = "normal";
+          snappingctrlkey.style.color = "black";
+        }
+      });
+
+      view.ui.add(configurationExpand, "bottom-right");
+
+      configurationInfoDiv.addEventListener("click", (event) => {
+        configurationExpand.expand();
+      });
+
+      view.ui.add("configurationInfoDiv", "bottom-right");
+
+      function showFloatingTextBox(content, duration) {
+        // Create a div element for the floating text box
+        var textBox = document.createElement("div");
+
+        // Style the text box
+        textBox.style.position = "fixed";
+        textBox.style.top = "50px"; // Set a fixed top position (you can adjust this value)
+        textBox.style.left = "50%";
+        textBox.style.transform = "translate(-50%, 0)";
+        textBox.style.padding = "10px";
+        textBox.style.background = "white"; // Set background to white
+        textBox.style.color = "black"; // Set text color to black
+        textBox.style.borderRadius = "5px";
+        textBox.style.border = "1px solid black"; // Add black border
+        textBox.style.zIndex = "9999";
+        textBox.style.boxShadow = "0px 0px 10px rgba(0, 0, 0, 0.3)"; // Add shadow for depth
+        textBox.style.whiteSpace = "pre-wrap"; // Preserve line breaks and spaces
+
+        // Convert content to a single string with line breaks
+        var textContent = Array.isArray(content) ? content.join("\n") : content;
+
+        // Set the text content
+        textBox.textContent = textContent;
+
+        // Append the text box to the document body
+        document.body.appendChild(textBox);
+
+        // Remove the text box after the specified duration
+        setTimeout(function () {
+          textBox.parentNode.removeChild(textBox);
+        }, duration);
+      }
+
+
+      function convertToDecimalDegrees(webMercatorPoint) {
+        // Use the Point constructor directly
+        const geographicPoint = new Point({
+          x: webMercatorPoint.x,
+          y: webMercatorPoint.y,
+          z: webMercatorPoint.z,
+          spatialReference: {
+            wkid: 3857,
+          },
+        });
+
+        // Check if the Point has a valid latitude and longitude
+        if (geographicPoint.latitude !== undefined && geographicPoint.longitude !== undefined) {
+          return geographicPoint;
+        } else {
+          console.error("Invalid web mercator point:", webMercatorPoint);
+          return null;
+        }
+      }
+
+      function create_dss_subscription(graphic) {
+        if (graphic.geometry && graphic.geometry.type === "polygon") {
+          fetch('/create_dss_subscription', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              polygon: graphic.geometry.toJSON(),
+              start_time: graphic.attributes.startTime,
+              end_time: graphic.attributes.endTime,
+              flight_duration: graphic.attributes.flightTime
+            }),
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.subscription_response) {
+                _subscription_id = data.subscription_response.subscription.id;
+                constraint_refs = data.subscription_response.constraint_references;
+                operational_intent_refs = data.subscription_response.operational_intent_references;
+                console.log(data.subscription_response);
+                sketchViewModel.cancel([_graphic]);
+                showFloatingTextBox(["DSS Subscription ID: " + _subscription_id,
+                "Constraint References: " + (constraint_refs.length > 0 ? constraint_refs : "[]"),
+                "Operational Intent References: " + (operational_intent_refs.length > 0 ? operational_intent_refs : "[]")], 15000);
+
+                // Create a graphic for the polygon with sides
+                // Create a symbol for the sides of the polygon
+
+                polygon = _graphic.geometry.toJSON()
+                var sideGraphic = new Graphic({
+                    geometry: _graphic.geometry,
+                    symbol: _sideSymbol
+                  });
+
+                // Add the graphics to the view
+                view.graphics.addMany([sideGraphic]);
+              }
+            })
+        }
+      }
+
+      function create_dss_constraint(graphic) {
+        if (graphic.geometry && graphic.geometry.type === "polyline") {
+          fetch('/create_dss_constraint', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              polyline: graphic.geometry.toJSON(),
+              start_time: graphic.attributes.startTime,
+              end_time: graphic.attributes.endTime,
+              flight_duration: graphic.attributes.flightTime
+            }),
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.constraint_response)
+                console.log(data.constraint_response)
+            })
+        }
+      }
+
+      function create_dss_operational_intent(graphic) {
+        if (graphic.geometry && graphic.geometry.type === "polyline") {
+          temp = null;
+          flightHeight = 40;
+          tubeColor = [0, 0, 250, 0.6];
+
+          if(!use_asl_checkbox.checked){
+            const paths = graphic.geometry.paths[0];
+            polylineInDecimalDegrees = convertPathToDecimalDegrees(paths);
+            
+            console.log(polylineInDecimalDegrees.toJSON())
+          }
+
+          // if this is populated we are in a state of having to deconflict the flight.
+          // for the purpose of a demo lets offset by height as its easily understood and apparent on the map; 
+          var ovnref = document.getElementById("ovnref").value;
+          if(ovnref !== ""){
+            _keys.push(ovnref);
+            flightHeight = 100;
+            tubeColor = [50, 0, 125, 0.6];
+          }
+
+          fetch('/create_dss_operational_intents', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              polyline: use_asl_checkbox.checked ? graphic.geometry.toJSON() : polylineInDecimalDegrees.toJSON(),
+              // start_time: graphic.attributes.startTime,
+              // end_time: graphic.attributes.endTime,
+              start_time: document.getElementById("startTime").value,
+              end_time: document.getElementById("endTime").value,
+              flight_duration: graphic.attributes.flightTime,
+              subscription_id: _subscription_id,
+              keys: _keys
+            }),
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.operational_intent_ref_response) {
+                
+                console.log(data.operational_intent_ref_response);
+                console.log(data.extents);
+
+                // Iterate through the extents
+                data.extents.forEach(extent => {
+                  // Extract altitude information
+                  const altitudeLower = extent.volume.altitude_lower.value;
+                  const altitudeUpper = extent.volume.altitude_upper.value;
+
+                  // Calculate height for the symbol
+                  const height = altitudeUpper - altitudeLower;
+
+                  // Define the coordinates for the polygon
+                  const polygonCoordinates = extent.volume.outline_polygon.vertices.map(vertex => [vertex.lng, vertex.lat]);
+
+                  // Create a polygon geometry
+                  const polygon = new Polygon({
+                    rings: [polygonCoordinates]
+                  });
+
+                  // Create a symbol for the sides of the polygon
+                  const sideSymbol = {
+                    type: "polygon-3d",
+                    symbolLayers: [{
+                      type: "extrude",
+                      size: height, // Use height as the size of the extrusion
+                      material: {
+                        color: tubeColor
+                      }
+                    }]
+                  };
+
+
+                  // Create a graphic for the polygon with sides
+                  const sideGraphic = new Graphic({
+                    geometry: polygon,
+                    symbol: sideSymbol, 
+                    attributes: {
+                      operational_intent_reference: {
+                        id: data.operational_intent_ref_response.id,
+                        ovn: data.operational_intent_ref_response.ovn,
+                        subscription: data.operational_intent_ref_response._subscription_id
+                      },
+                      subscribers: data.operational_intent_ref_response.subscribers
+                    }
+                  });
+
+                  // Add the graphic to the view
+                  //graphicsLayer.add(sideGraphic);
+                  sketchViewModel.cancel([_graphic]);
+                });
+
+                // Test
+                const options = {
+                    profile: "quad",
+                    cap: "round",
+                    join: "miter",
+                    width: 5,
+                    height: 30,
+                    color: [200, 200, 200],
+                    profileRotation: "all"
+                  };
+
+                  const roundTubeSymbol = {
+                    type: "line-3d",
+                    symbolLayers: [{
+                      type: "path",
+                      profile: "circle",
+                      material: {
+                        color: tubeColor
+                      },
+                      width: 50, // the width in m
+                      height: 50 // the height in m
+                    }]
+                  }
+
+                  // const symbol_rr = {
+                  //   type: "line-3d",
+                  //   symbolLayers: [
+                  //     {
+                  //       type: "path",
+                  //       profile: options.profile,
+                  //       material: {
+                  //         color: [100, 100, 100]
+                  //       },
+                  //       width: options.width,
+                  //       height: options.height,
+                  //       join: options.join,
+                  //       cap: options.cap,
+                  //       anchor: "bottom",
+                  //       profileRotation: options.profileRotation
+                  //     }
+                  //   ]
+                  // }
+
+                  for (let i = 0; i < data.polyline.paths.length; i++) {
+                    const path = data.polyline.paths[i];
+                    const originalFirstZValue = path[0][2]; // Original Z value of the first coordinate
+                    const originalLastZValue = path[path.length - 1][2]; // Original Z value of the last coordinate
+                    
+                    // Insert a copy of the first coordinate at the beginning
+                    const firstCoordinateCopy = [...path[0]];
+                    path.unshift(firstCoordinateCopy);
+
+                    // Insert a copy of the last coordinate at the end
+                    const lastCoordinateCopy = [...path[path.length - 1]];
+                    path.push(lastCoordinateCopy);
+
+                    // Set Z value of the first and last coordinate to 0
+                    path[0][2] = -60;
+                    path[path.length - 1][2] = -60;
+
+                    // Set Z value of all other coordinates to 50
+                    for (let j = 1; j < path.length - 1; j++) {
+                        path[j][2] = flightHeight;
+                    }
+                  }
+
+                  const airspacelink_route_graphic = new Graphic({
+                    geometry: {
+                      type: 'polyline',
+                      paths: data.polyline.paths,
+                      spatialReference: { wkid: 4326 }
+                    },
+                    symbol: roundTubeSymbol
+                    //{
+                    //  type: 'simple-line',
+                    //  color: [0, 0, 0, 1],
+                    //  width: 2
+                    //}
+                  });
+
+                  airspacelink_route_graphic.attributes = {
+                    startTime: document.getElementById("startTime").value,
+                    endTime: document.getElementById("endTime").value
+                  };
+
+                  //graphicsLayer.add(airspacelink_route_graphic);
+                  airCorridorLayer.add(airspacelink_route_graphic);
+                  //End Testing
+
+                //_keys.push(data.operational_intent_ref_response.operational_intent_reference.ovn);
+                var opt_intent_ref = document.getElementById("optIntentPanel");
+                opt_intent_ref.style.display = "none";
+
+                var optIntentRefInput = document.getElementById("optIntentRefInput");
+                optIntentRefInput.value = "";
+                var USSBaseURLInput = document.getElementById("USSBaseURLInput");
+                USSBaseURLInput.value = "";
+
+                var ovn_panel = document.getElementById("ovn");
+                ovn_panel.style.display = "none";
+                document.getElementById("ovnref").value = "";
+                _keys.pop();
+
+                showFloatingTextBox(["id: " + data.operational_intent_ref_response.operational_intent_reference.id,
+                "manager: " + data.operational_intent_ref_response.operational_intent_reference.manager,
+                "uss_availability: " + data.operational_intent_ref_response.operational_intent_reference.uss_availability,
+                "version:: " + data.operational_intent_ref_response.operational_intent_reference.version,
+                "state: " + data.operational_intent_ref_response.operational_intent_reference.state,
+                "ovn: " + data.operational_intent_ref_response.operational_intent_reference.ovn,], 20000);
+              } else {
+                var opt_intent_ref = document.getElementById("optIntentPanel");
+                opt_intent_ref.style.display = "block";
+                status = data["status_code"];
+                message = data["message"];
+                missing_operational_intents = data["missing operational intents"];
+                showFloatingTextBox(["Status Code: " + status, "Message: " + message, "Missing Operational Intents: " + missing_operational_intents[0].id, "USS Base Url: " + missing_operational_intents[0].uss_base_url], 20000);
+              }
+            });
+        }
+      }
+
+      function adjustEndTime(startTimeString, flightTimeMinutes, userEndTimeString) {
+        // Parse input strings to Date objects in New Zealand time zone
+        const timeZone = 'Pacific/Auckland';
+        let startTime = new Date(startTimeString); // Append 'Z' to indicate UTC time
+        let userEndTime = new Date(userEndTimeString);
+
+        const newZealandTime = startTime.toLocaleString('en-NZ', { timeZone });
+
+        // Convert times to New Zealand time zone
+        //startTime.toLocaleString('en-NZ', { timeZone });
+        //userEndTime.toLocaleString('en-NZ', { timeZone });
+
+        // Calculate the expected end time based on start time and flight time
+        const expectedEndTime = new Date(startTime.getTime() + flightTimeMinutes * 60000);
+
+        // Format the result in the specified format and time zone manually
+        const formatter = new Intl.DateTimeFormat('en-NZ', {
+          year: 'numeric',
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit',
+          hour12: false,
+          timeZone: 'Pacific/Auckland',
+        });
+
+        const [
+          { value: month },
+          ,
+          { value: day },
+          ,
+          { value: year },
+          ,
+          { value: hour },
+          ,
+          { value: minute },
+          ,
+          { value: second },
+        ] = formatter.formatToParts(expectedEndTime);
+
+        const formattedResult = `${year}-${day}-${month}T${hour}:${minute}`; //':${second}';
+
+        return formattedResult;
+      }
+
+      function displayDistanceTime(graphic) {
+        // Calculate and display route length in meters
+        const routeLengthMeters = geometryEngine.geodesicLength(graphic.geometry, "meters");
+        document.getElementById("routeLength").innerText = routeLengthMeters.toFixed(2) + " meters";
+
+        // Calculate and display flight time at 25 mph in minutes
+        const speedMetersPerSecond = 25 * 0.44704; // Convert mph to meters per second
+        const flightTimeSeconds = routeLengthMeters / speedMetersPerSecond;
+        const flightTimeMinutes = flightTimeSeconds / 60;
+
+        // Update the flight time display in minutes
+        document.getElementById("flightTime").innerText = flightTimeMinutes.toFixed(2) + " minutes";
+
+        // Show the length and flight time panel
+        document.getElementById("lengthFlightTimePanel").style.display = "block";
+
+        // Update endTime attribute
+        const startTime = document.getElementById("startTime").value;
+        let endTimeInput = document.getElementById("endTime");
+
+        // Store reference to the parent node
+        const parentNode = endTimeInput.parentNode;
+        // Store reference to the current position of the endTimeInput
+        const siblingNode = endTimeInput.nextSibling;
+
+        if(endTimeInput.value == "")
+          endTimeInput.value = startTime;
+
+        newEndTime = adjustEndTime(startTime, flightTimeMinutes, endTimeInput.value)
+
+        // Remove the existing datetime-local input
+        endTimeInput.parentNode.removeChild(endTimeInput);
+
+        // Update the graphic attributes
+        graphic.attributes = {
+          startTime: startTime,
+          endTime: newEndTime,
+          flightTime: flightTimeMinutes,
+          name: ""
+        };
+
+        // Create a new datetime-local input
+        endTimeInput = document.createElement("input");
+        endTimeInput.type = "datetime-local";
+        endTimeInput.id = "endTime";
+        endTimeInput.style.width = "220px";
+
+        // Insert the new input back before the siblingNode
+        parentNode.insertBefore(endTimeInput, siblingNode);
+        try {
+          // Set the value of the datetime-local input
+          endTimeInput.setAttribute('value', newEndTime);
+        } catch (error) {
+          console.log(error)
+        }
+        //endTimeInput.setAttribute('value', newEndTime);
+
+        // Debugging: Log the calculated endTime and startTime
+        console.log("Calculated End Time:", newEndTime);
+        console.log("Start Time:", startTime);
+      }
+
+      function convertPathToDecimalDegrees(paths){
+        console.log(paths)
+          const verticesInDecimalDegrees = [];
+
+          // Iterate through paths
+          for (let i = 0; i < paths.length; i++) {
+            const path = paths[i];
+            const convertedPath = [];
+
+            if (path && path.length === 3) {
+              const [x, y, z] = path;
+
+              try {
+                const webMercatorPoint = new Point({
+                  x: x,
+                  y: y,
+                  z: z,
+                  spatialReference: { wkid: 3857 }
+                });
+
+                const decimalDegrees = convertToDecimalDegrees(webMercatorPoint);
+                console.log("Lon:", decimalDegrees.longitude, "Lat:", decimalDegrees.latitude, "Z:", decimalDegrees.z)
+
+                // Add an array with the latitude, longitude, and z in decimal degrees to the convertedPath
+                convertedPath.push([decimalDegrees.longitude, decimalDegrees.latitude, decimalDegrees.z]);
+              } catch (error) {
+                // Code to handle the exception
+                console.error("An error occurred:", error.message);
+              }
+            } else {
+              console.error('Invalid point:', path);
+              convertedPath.push(null);
+            }
+
+            // Add the convertedPath to the verticesInDecimalDegrees array
+            verticesInDecimalDegrees.push(convertedPath);
+          }
+
+          console.log('Vertices in Decimal Degrees: ', verticesInDecimalDegrees)
+          // Create a new Polyline using the converted vertices
+          const polylineInDecimalDegrees = new Polyline({
+            paths: verticesInDecimalDegrees,
+            spatialReference: {
+              wkid: 4326 // WGS 1984 (decimal degrees)
+            }
+          });
+
+          return polylineInDecimalDegrees;
+      }
+
+      function addZValue(coordinates, zValue) {
+        value = -70;
+        for (var i = 0; i < coordinates.length; i++) {
+
+          if(i == coordinates.length - 1 || i == 0)
+          {
+            coordinates[i].push(zValue + (value));
+          }
+          else
+          {
+            coordinates[i].push(zValue + value[i]);
+          }
+            
+        }
+      }
+
+      function sendPolylineData(graphic) {
+
+        /// Check if the graphicJson has the expected structure
+        if (graphic.geometry && graphic.geometry.type === "polyline" && graphic.geometry.paths && graphic.geometry.paths.length > 0) {
+
+          const paths = graphic.geometry.paths[0];
+          polylineInDecimalDegrees = convertPathToDecimalDegrees(paths);
+
+          // Replace this function with your logic to send polyline data
+          console.log('Polyline Data in Decimal Degrees:', polylineInDecimalDegrees.toJSON());
+          // Here you can send the polyline data to your server or perform other actions.
+          _graphic = null
+
+          fetch('/get_asl_route', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ 
+              polyline: polylineInDecimalDegrees.toJSON() ,
+              userASL : use_asl_checkbox.checked
+            }),
+          })
+            .then(response => response.json())
+            .then(data => {
+              if (data.error) {
+                displayErrorMessage(`Error: ${data.error}. Status Code: ${data.status_code}`);
+              }
+
+              if (data.operation_polygon && data.operation_polygon.type === 'Polygon') {
+
+                try {
+                  const operation_polygon_coordinates = data.operation_polygon.coordinates;
+                  const airspacelink_operation_graphic = new Graphic({
+                    geometry: {
+                      type: 'polygon',
+                      rings: operation_polygon_coordinates,
+                      spatialReference: { wkid: 4326 }
+                    },
+                    symbol: {
+                      type: 'simple-fill',
+                      color: [255, 0, 0, 0.5], // Red color with 50% transparency
+                      outline: {
+                        color: [255, 0, 0, 1], // Red color with 100% transparency
+                        width: 2
+                      }
+                    },
+                    attributes: {
+                      airspacelink: "Operation_Extent",
+                      dss: "Subscription_Extent"
+                    }
+                  });
+
+                  // Define the coordinates for the polygon
+                  var polygon = new Polygon({
+                    rings: operation_polygon_coordinates
+                  });
+
+                  // Create a graphic for the polygon with sides
+                  /*var sideGraphic = new Graphic({
+                    geometry: polygon,
+                    symbol: sideSymbol
+                  });
+
+                  // Add the graphics to the view
+                  view.graphics.addMany([sideGraphic]);*/
+                  graphicsLayer.add(airspacelink_operation_graphic);
+
+                  if(use_asl_checkbox.checked){
+                    var airspacelink_route_coordinates = data.airspacelink_route.coordinates;
+
+                  addZValue(airspacelink_route_coordinates, 20);
+                                      
+                  //Testing shapes
+                  // create a PathSymbol3DLayer with a pipe style
+                  const options = {
+                    profile: "quad",
+                    cap: "round",
+                    join: "miter",
+                    width: 5,
+                    height: 30,
+                    color: [200, 200, 200],
+                    profileRotation: "all"
+                  };
+
+                  const roundTubeSymbol = {
+                    type: "line-3d",
+                    symbolLayers: [{
+                      type: "path",
+                      profile: "circle",
+                      material: {
+                        color: [0, 0, 250, 0.6]
+                      },
+                      width: 50, // the width in m
+                      height: 50 // the height in m
+                    }]
+                  }
+
+                  const symbol_rr = {
+                    type: "line-3d",
+                    symbolLayers: [
+                      {
+                        type: "path",
+                        profile: options.profile,
+                        material: {
+                          color: [100, 100, 100]
+                        },
+                        width: options.width,
+                        height: options.height,
+                        join: options.join,
+                        cap: options.cap,
+                        anchor: "bottom",
+                        profileRotation: options.profileRotation
+                      }
+                    ]
+                  }
+
+                
+                  //End Testing
+                    const airspacelink_route_graphic = new Graphic({
+                      geometry: {
+                        type: 'polyline',
+                        paths: airspacelink_route_coordinates,
+                        spatialReference: { wkid: 4326 }
+                      },
+                      symbol: //roundTubeSymbol
+                      {
+                        type: 'simple-line',
+                        color: [0, 0, 0, 1],
+                        width: 2
+                      }
+                      
+                    });
+
+                    airspacelink_route_graphic.attributes = {
+                      startTime: document.getElementById("startTime").value,
+                      endTime: document.getElementById("endTime").value
+                    };
+
+                    graphicsLayer.add(airspacelink_route_graphic);
+                    //airCorridorLayer.add(airspacelink_route_graphic);
+                    //
+                    const airspacelink_network = data.network.coordinates;
+                    const airspacelink_airspacelink_network_graphic = new Graphic({
+                      geometry: {
+                        type: 'polyline',
+                        paths: airspacelink_network,
+                        spatialReference: { wkid: 4326 }
+                      },
+                      symbol: {
+                        type: 'simple-line',
+                        color: [125, 155, 0, 1],
+                        width: 1
+                      },
+                      attributes: {name: "network"}
+                    });
+                    var networkChkBx = document.getElementById("aslnetworkvisibilitycheckbox");
+                    airspacelink_airspacelink_network_graphic.visible = networkChkBx.checked;
+                    graphicsLayer.add(airspacelink_airspacelink_network_graphic);
+
+                    data.hexes.forEach(hexGroup => {
+                        hexGroup.forEach(hexCoordinates => {
+                            // Create a new graphic for each hex polygon
+                            const polygonGraphic = new Graphic({
+                                geometry: {
+                                    type: 'polygon',
+                                    rings: hexCoordinates,
+                                    spatialReference: { wkid: 4326 } 
+                                },
+                                symbol: {
+                                    type: 'simple-fill', 
+                                    color: [254, 254, 254, 0.3], // Fill color with alpha for transparency
+                                    outline: {
+                                        color: [255, 255, 255, 1], 
+                                        width: 1
+                                    }
+                                },
+                                attributes: { name: "hex"}
+                            });
+                            var chkbx = document.getElementById("aslhexvisibilitycheckbox");
+                            polygonGraphic.visible = chkbx.checked;
+                            graphicsLayer.add(polygonGraphic);
+                        });
+                    });
+                  }
+
+                  //
+                } catch (error) {
+                  console.error('Error parsing JSON:', error);
+                }
+              }
+            })
+            .catch((error) => {
+              console.error('Error:', error);
+            });
+        } else {
+          console.error('Invalid polyline format. Unable to extract paths.');
+        }
+      }
+
+      // Function to display an error message
+      function displayErrorMessage(message) {
+          // Set the error message text
+          document.getElementById('errorMessage').textContent = message;
+          
+          // Show the error message container
+          document.getElementById('errorMessageContainer').style.display = 'block';
+      }
+
+      // Function to dismiss the error message
+      function dismissErrorMessage() {
+          // Hide the error message container
+          document.getElementById('errorMessageContainer').style.display = 'none';
+      }
+    });
+  </script>
+</head>
+
+<body>
+  <div id="viewDiv"></div>
+  <div id="lengthFlightTimePanel" style="display:none;">
+    <br />Route Length: <span id="routeLength"></span>
+    <br />Flight Time: <span id="flightTime"></span>
+  </div>
+  <div id="startEndTimePanel" style="display:none;">
+    <br />Start Time: <span id="startTimeText"></span>
+    <br />End Time: <span id="endTimeText"></span>
+  </div>
+  <div id="sketchPanel" class="esri-widget">
+    <div id="startbuttons">
+      <button id="line" data-type="polyline" class="esri-button starttool">Draw a route</button>
+    </div>
+    <div id="actionbuttons">
+      <button id="done" class="esri-button">Done</button>
+      <button id="cancel" class="esri-button">Cancel</button>
+    </div>
+    <div id="graphicDataUI" style="width: 300px;">
+      <br />Start Time: <input type="datetime-local" id="startTime" style="width: 220px;" />
+      <br />End Time: <input type="datetime-local" id="endTime" style="width: 220px;" />
+      <br />Route Length: <span id="routeLength"></span>
+      <br />Flight Time: <span id="flightTime"></span>
+    </div>
+    <div id="dss_activity">
+      <button id="dss_subscription" class="esri-button">DSS Subscription</button>
+      <button id="dss_constraint" class="esri-button">DSS Constraint</button>
+      <button id="dss_operational_intent" class="esri-button">DSS Operational Intents</button>
+      <div id="ovn" class="panel">
+        <label for="optIntentRef">QVN:</label>
+        <input type="text" id="ovnref" value=""/>
+      </div>
+    </div>
+    <!-- Error message container -->
+    <div id="errorMessageContainer" style="display: none;">
+      <p id="errorMessage"></p>
+      <button id="dismissErrorMessage">Dismiss</button>
+    </div>
+    <div id="optIntentPanel" class="panel">
+      <div>
+        <label for="optIntentRef">Query Operational Intent Ref:</label>
+        <input type="text" id="optIntentRefInput" value=""/>
+        <label for="optIntentRef">USS Base URL:</label>
+        <input type="text" id="USSBaseURLInput" value=""/>
+        <button id="queryOperationIntentbtn" class="esri-button">Query</button>
+      </div>
+      <div id="operationaIntentRefResult" class="panel">
+        <div>
+          <label for="returnedOptIntentRefURLLabel"><b>USS URL:</b></label>
+          <span id="returnedOptIntentRefURLLabel"></span>
+        </div>
+        <div>
+          <label for="returnedOptIntentRefURLLabel"><b>Subscription ID:</b></label>
+          <span id="returnedOptIntentRefSubscriptionIDLabel"></span>
+        </div>
+        <div>
+          <label for="returnedOptIntentRefIDLabel"><b>Operational Intent ID:</b></label>
+          <span id="returnedOptIntentRefIDLabel"></span>
+        </div>
+        <div>
+          <label for="returnedOptIntentRefOVNLabel"><b>OVN:</b></label>
+          <span id="returnedOptIntentRefOVNLabel"></span>
+        </div>
+        <div>
+          <label for="returnedOptIntentRefStartTimeLabel"><b>Start Time:</b></label>
+          <span id="returnedOptIntentRefStartTimeLabel"></span>
+        </div>
+        <div>
+          <label for="returnedOptIntentRefEndTimeLabel"><b>End Time:</b></label>
+          <span id="returnedOptIntentRefEndTimeLabel"></span>
+        </div>
+      </div>
+    </div>
+  </div>
+  <div id="configurationDiv" class="esri-widget">
+    <table id="configurationTable">
+      <tbody>
+       
+        <tr>
+          <td>
+            <label><b>Tooltip/Label </b></label>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <label for="labelOptionscheckbox" id="labelOptionscheckboxlabel"> - Label</label>
+          </td>
+          <td><input type="checkbox" id="labelOptionscheckbox" /></td>
+        </tr>
+        <tr>
+          <td>
+            <label for="enabledcheckbox" id="enabledcheckboxlabel"><b>Discovery and Synchronization Service (DSS)</b></label>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <label for="dsssubscriptionvisibilitycheckbox" id="dsssubscriptionvisibilitylabel"> - DSS Subscription Visibility</label>
+          </td>
+          <td><input type="checkbox" id="dsssubscriptionvisibilitycheckbox" /></td>
+        </tr>
+        <tr>
+          <td>
+            <label for="enabledcheckbox" id="enabledcheckboxlabel"><b>ASL Operation</b></label>
+          </td>
+        </tr>
+        <tr>
+          <td>
+            <label for="aslnetworkvisibilitycheckbox" id="aslnetworkvisibilitylabel"> - Network Visibility</label>
+          </td>
+          <td><input type="checkbox" id="aslnetworkvisibilitycheckbox" /></td>
+        </tr>
+        <tr>
+          <td>
+            <label for="aslhexvisibilitycheckbox" id="aslhexvisibilitylabel"> - Hex Visibility</label>
+          </td>
+          <td><input type="checkbox" id="aslhexvisibilitycheckbox" /></td>
+        </tr>
+      </tbody>
+      <tr>
+        <td>
+          <label for="use_asl_checkbox" id="use_asl_label"> - Use Airspacelink Routing</label>
+        </td>
+        <td><input type="checkbox" id="use_asl_checkbox" /></td>
+      </tr>
+    </tbody>
+    </table>
+  </div>
+</body>
+
+
+</html>

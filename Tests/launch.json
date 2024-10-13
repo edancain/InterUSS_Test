@@ -1,0 +1,28 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+      {
+        "name": "Python: Flask",
+        "type": "python",
+        "request": "launch",
+        "program": "${/Users/edancain/PycharmProjects/Tests/app.py",
+        "args": [
+          "run",
+          "--no-debugger"
+        ],
+        "env": {
+          "FLASK_APP": "$/Users/edancain/PycharmProjects/Tests/app.py",
+          "FLASK_ENV": "development",
+          "PYTHONPATH": "${workspaceFolder}"
+        },
+        "stopOnEntry": false,
+        "cwd": "${workspaceFolder}",
+        "debugOptions": [
+          "WaitOnAbnormalExit",
+          "WaitOnNormalExit",
+          "RedirectOutput"
+        ]
+      }
+    ]
+  }
+  
