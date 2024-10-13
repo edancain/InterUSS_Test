@@ -3,7 +3,7 @@
 import uuid
 import requests
 import json
-from Airspacelink.advisories import Geometry, GeometryType
+from AirspaceLink_API.advisories import Geometry, GeometryType
 
 
 class Operation_Properties:

@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 import requests
 import json
-from Airspacelink.advisories import Geometry, Feature
+from AirspaceLink_API.advisories import Geometry, Feature
 
 class HazardRisk:
     def __init__(self, api_key, token):  

@@ -2,9 +2,9 @@
 
 import requests
 import json
-from Airspacelink.advisories import MultiPointGeometry, PolygonGeometry, MultiLineString, LineStringGeometry
-from Airspacelink.layer import Layer, Layers
-from Airspacelink.UberH3 import GetH3
+from AirspaceLink_API.advisories import MultiPointGeometry, PolygonGeometry, MultiLineString, LineStringGeometry
+from AirspaceLink_API.layer import Layer, Layers
+from AirspaceLink_API.UberH3 import GetH3
 
 from flask import Flask, g, jsonify
 import threading

@@ -2,11 +2,11 @@
 
 import requests
 import json
-from Airspacelink.advisories import Geometry
-from Airspacelink.line_of_sight_enum import LineOfSight
-from Airspacelink.pilot_control_enum import PilotControl
-from Airspacelink.uav_weight_enum import UavWeight
-from Airspacelink.uav_type_enum import UavType
+from AirspaceLink_API.advisories import Geometry
+from AirspaceLink_API.line_of_sight_enum import LineOfSight
+from AirspaceLink_API.pilot_control_enum import PilotControl
+from AirspaceLink_API.uav_weight_enum import UavWeight
+from AirspaceLink_API.uav_type_enum import UavType
 
 
 class Corridor:

@@ -1,4 +1,4 @@
-from Airspacelink.stop import Stop
+from AirspaceLink_API.stop import Stop
 import json
 import logging
 

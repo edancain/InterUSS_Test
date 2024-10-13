@@ -2,7 +2,7 @@
 
 import requests
 import json
-from Airspacelink.advisories import Geometry, PolygonGeometry, Feature
+from AirspaceLink_API.advisories import Geometry, PolygonGeometry, Feature
 
 
 class Aviation:
