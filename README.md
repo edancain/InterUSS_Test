@@ -1,3 +1,11 @@
+# Project Structure
+This work showcases a simple implementation in Python showcasing interaction with the AirspaceLink API's that I think are wonderful and of relevance to this demo.
+One creates a multistop route, as drones don't typically fly from one location to another. AirspaceLink interaction is in terms of routing to those desired points 
+of a route around no fly zones, i.e. schools, prisons, shopping malls. (shopping malls and prisons are indivisible to me).
+
+This code works with the InterUSS open example listed below. 
+This code employs the use of the ESRI Javascript API in 3D. The application starts in South Lake Tahoe, California, which was home. No other reason. 
+
 This work requires an instance of the DSS to be running. 
 To run the DSS locally:
 
