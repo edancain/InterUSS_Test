@@ -7,6 +7,8 @@ This code works with the InterUSS open example listed below.
 This code employs the use of the ESRI Javascript API in 3D. The application starts in South Lake Tahoe, California, which was home. No other reason. 
 
 This work requires an instance of the DSS to be running. 
+Follow these instructions: https://github.com/interuss/dss/blob/master/build/dev/standalone_instance.md
+
 To run the DSS locally:
 
 1: Start Docker
