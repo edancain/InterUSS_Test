@@ -23,7 +23,7 @@ class Authentication:
                 'scope': 'route:create operation:create' 
             }
 
-            response = requests.post(url, headers=headers, data=data)
+            response = requests.post(url, headers=headers, data=data, verify=False)
 
 
             data = response.json() 

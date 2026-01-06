@@ -519,6 +519,7 @@
             }
           }
         });
+        graphicsLayer.refresh();
       });
 
       aslhexvisibilitycheckbox.checked = true;
@@ -532,6 +533,7 @@
             }
           }
         });
+        graphicsLayer.refresh();
       });
 
       use_asl_checkbox.checked = true;
@@ -842,6 +844,7 @@
                     // Set Z value of all other coordinates to 50
                     for (let j = 1; j < path.length - 1; j++) {
                         path[j][2] = flightHeight;
+                        path[j]
                     }
                   }
 

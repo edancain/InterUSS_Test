@@ -15,7 +15,7 @@ import traceback
 import sys
 import os
 from datetime import datetime, timedelta
-import pytz
+# import pytz
 from typing import List
 import uuid
 
@@ -1191,6 +1191,7 @@ class MainProcessor:
     @staticmethod
     def create_operational_intent_ref(dss_instance: DSS_Interaction, extents: [utility.Extent], keys: [], state: OperationalIntentStatus, uss_base_url: str, subscription_id, new_subscription: utility.NewSubscription, entity_id: str, token) -> OperationalIntentReferenceResponse:
         operational_intent_payload_object = OperationalIntentReferenceRequest(extents, keys, state, uss_base_url, subscription_id, new_subscription)
+        print(operational_intent_payload_object)  # This will show you the actual payload
         operational_intent_reference_response = dss_instance.create_operational_intent_reference(operational_intent_payload_object, entity_id, token)
         return operational_intent_reference_response
 

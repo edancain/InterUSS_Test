@@ -91,14 +91,22 @@ class OperationalIntentReferenceRequest: # request structure for op int ref crea
         self.new_subscription = new_subscription
 
     def to_json(self):
-        return {
-            "extents": [extent.to_json() for extent in self.extents],
-            "key": [key for key in self.key] if self.key else [], # explanation of what a key is below
-            "state": self.state,
-            "uss_base_url": self.uss_base_url,
-            "subscription_id": self.subscription_id,
-            "new_subscription": self.new_subscription.to_json()
+        payload = {
+        "extents": [extent.to_json() for extent in self.extents],
+        "key": [key for key in self.key] if self.key else [],
+        "state": self.state,
+        "uss_base_url": self.uss_base_url
         }
+        
+        # Add subscription_id OR new_subscription, but not both
+        if self.subscription_id is not None:
+            payload["subscription_id"] = self.subscription_id
+        elif self.new_subscription is not None:
+            payload["new_subscription"] = self.new_subscription.to_json()
+
+        print(payload) 
+        return payload
+
 
         # Key
         # Array of Key (strings)

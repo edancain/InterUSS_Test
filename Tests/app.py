@@ -7,6 +7,20 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from USS.uss_interaction import USS_Interaction
 
+import requests
+import urllib3
+from urllib3.exceptions import InsecureRequestWarning
+
+
+# Disable SSL verification globally (dev only!)
+urllib3.disable_warnings(InsecureRequestWarning)
+
+# Make all requests ignore SSL by default
+old_request = requests.Session.request
+def patched_request(self, *args, **kwargs):
+    kwargs.setdefault('verify', False)
+    return old_request(self, *args, **kwargs)
+requests.Session.request = patched_request
 
 import json
 import uuid
@@ -20,7 +34,7 @@ import jwt
 from datetime import datetime, timedelta
 
 # import pdb
-import ptvsd
+# import debugpy
 
 from AirspaceLink_API.advisories import Geometry, GeometryType, PolygonGeometry
 from AirspaceLink_API.operations import Operation, Operation_Properties, Operational_Feature
@@ -249,14 +263,18 @@ def extents_from_route(polyline, time_range: TimeRange, altitude_range: Altitude
     extents = []
     paths_list = polyline['paths']
     for index, path in enumerate(paths_list):
-        for i in range(len(path) - 1):  # Iterate through each coordinate pair
+        for i in range(len(path) - 1):
             coords = []
-            for coordinates in path[i:i+2]:  # Get consecutive pairs of coordinates
+            for coordinates in path[i:i+2]:
+                if len(coordinates) < 3:
+                    continue
+                    
                 longitude, latitude, altitude = coordinates
                 coords.append([longitude, latitude])
-            polygon_geom = AirspaceLinkTest.AirspacelinkTests.buffer_simple_line(coords, 0.0005)
-            waypoints_extent = MainProcessor.build_extent(polygon_geom, time_range, altitude_range)
-            extents.append(waypoints_extent)
+
+    polygon_geom = AirspaceLinkTest.AirspacelinkTests.buffer_simple_line(coords, 0.0005)
+    waypoints_extent = MainProcessor.build_extent(polygon_geom, time_range, altitude_range)
+    extents.append(waypoints_extent)
 
     return extents
 
@@ -288,7 +306,7 @@ def dss_operational_intent_references():
         flight_duration = data['flight_duration']
 
     if 'subscription_id' in data:
-        subscription_id = data['subscription_id']
+        subscription_id = None # data['subscription_id']
 
     if 'keys' in data:
         keys = data['keys']
@@ -304,7 +322,7 @@ def dss_operational_intent_references():
     uid = uuid.uuid4()
     url = "https://www.edantest.com"
 
-    new_subscription = NewSubscription(url, True);
+    new_subscription = NewSubscription(url, True)
 
     operational_intent_ref_response = MainProcessor.create_operational_intent_ref(dss_instance, extents, keys, OperationalIntentStatus.ACCEPTED.value, url, subscription_id, new_subscription, uid, token)
     response_data = ''
@@ -932,6 +950,6 @@ def delete_flight_plan(flight_plan_id):
 # ======== End ==================
 
 if __name__ == '__main__':
-    ptvsd.enable_attach(address=('localhost', 5679), redirect_output=False)
-
+    #ptvsd.enable_attach(address=('localhost', 5679), redirect_output=False)
+    # debugpy.listen(('0.0.0.0', 5678))
     app.run(debug=True, threaded=True) 
